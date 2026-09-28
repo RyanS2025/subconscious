@@ -511,6 +511,18 @@ for (const selectedVision of [true, false])
           ? path.join(home, '.pi', 'agent', 'models.json')
           : path.join(appData, 'Code', 'User', 'chatLanguageModels.json');
       const document = JSON.parse(await fs.readFile(file, 'utf8'));
+      if (client === 'pi')
+        for (const name of ['index.ts', 'window.js'])
+          await fs.access(
+            path.join(
+              home,
+              '.pi',
+              'agent',
+              'extensions',
+              'subconscious-image-window',
+              name,
+            ),
+          );
       const provider =
         client === 'pi'
           ? document.providers.subconscious
@@ -1237,4 +1249,15 @@ test('Windows host: CLI routes every agent with a Bash-free PATH and preserves e
     });
     assert.equal(result.code, 0, `${command}: ${result.stderr}`);
   }
+});
+
+test('Windows OpenCode launch loads the image window plugin', async () => {
+  const { env } = await windowsLaunch('opencode', [], {
+    GATEWAY_URL: 'https://gateway.example',
+    API_KEY: 'sk-test',
+    MODEL: 'subconscious/deepseek-v4.1-flash-marathon',
+  });
+  const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT);
+  assert.equal(config.plugin.length, 1);
+  await fs.access(config.plugin[0]);
 });

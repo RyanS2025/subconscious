@@ -161,6 +161,17 @@ The packaged integrations live in `bin/runbook`.
 | `subc pi` | Refresh the Pi provider from the live catalog, then launch |
 | `subc dsh` | Launch the DeepSeek Harness Web UI with a temporary provider populated from the live catalog |
 
+## Long screenshot sessions
+
+Coding agents resend every screenshot on every turn, so a long computer-use or screenshot session grows until the gateway refuses it. For vision models, subc applies one rule in Pi and OpenCode before a request leaves the machine: keep the newest screenshots, up to 100 and up to 60 MiB in total, and put the text `image` where older ones were. The gateway applies the same rule, so it receives exactly what its own window would produce, and Subconscious Cache still reuses the rest of the conversation: each turn only reads the new screenshot.
+
+| Agent | How subc applies it |
+| --- | --- |
+| OpenCode | A plugin loaded from the launch config (`bin/runbook/opencode/subconscious-image-window.ts`) that gives the provider a trimming `fetch`. |
+| Pi | An extension installed with the provider (`bin/runbook/image-window/index.ts`, on `before_provider_request`). |
+
+The rule is in `bin/runbook/image-window/window.js`. `SUBCONSCIOUS_IMAGE_WINDOW_MAX_MIB` changes the byte budget (default 60, under Baseten's 64 MiB request limit). Text-only models are left alone, and a request the integrations do not recognize is sent unchanged.
+
 ## Sessions and cross-harness handoff
 
 Run `subc` and choose **Coding sessions**, or list the same local catalog from
