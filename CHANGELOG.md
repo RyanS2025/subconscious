@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.1](https://github.com/subconscious-systems/subconscious/compare/v6.0.0...v6.0.1) (2026-09-28)
+
+
+### Bug fixes
+
+* list the accepted editors in subc config edit errors ([ec31b2f](https://github.com/subconscious-systems/subconscious/commit/ec31b2f7dedd1a1953fcdedd4eb8e843dc1df8ec)), closes [#83](https://github.com/subconscious-systems/subconscious/issues/83)
+
 ## [6.0.0](https://github.com/subconscious-systems/subconscious/compare/v5.0.3...v6.0.0) (2026-09-25)
 
 
