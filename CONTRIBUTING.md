@@ -79,6 +79,10 @@ Open one pull request per change. `main` accepts changes only through a pull req
 
 Merging to `main` updates the Release Please pull request. Merging that pull request tags `vX.Y.Z` and publishes `subconscious-cli` to npm. Laptop `npm publish` is refused.
 
+## Daily vulnerability scan
+
+`.github/workflows/supply-chain-daily.yml` runs at 13:00 UTC. It can also be started with `workflow_dispatch`. It runs `govulncheck` on the published npm tag and on `main`. Called findings open or update one public GitHub issue, `Go vulnerabilities in subconscious-cli`, labeled `bug` and `help wanted`. A later clean scan comments and closes that issue. The workflow is not a required pull-request check. It uses the job's `GITHUB_TOKEN` and does not need a new repository secret.
+
 ## Maintainers: protect main
 
 `main` is covered by the repository ruleset `Protect main` (ruleset `24016657`). It requires a pull request, blocks force pushes, and requires the status checks below. Release Please pushes its own branch and a person merges that pull request, so the token user does not need a bypass on `main`.
@@ -91,8 +95,11 @@ Required status checks, matching the job names GitHub reports:
 - `unix (ubuntu-latest)`
 - `unix (macos-latest)`
 - `commitlint`
+- `supply-chain`
 
 Also require a pull request before merging, and block force pushes.
+
+`supply-chain` is listed here so the ruleset stays in sync with CI. A maintainer still has to add that exact job name to the `Protect main` ruleset (`24016657`). This repository change cannot update the ruleset.
 
 Repository secret, supplied by a maintainer:
 
