@@ -9,7 +9,7 @@ Node command engine, which keeps all explicit `subc <command>` behavior stable.
 
 ```bash
 npm run build:tui:host
-subc-local
+node bin/cli.js
 ```
 
 Run both test suites with:

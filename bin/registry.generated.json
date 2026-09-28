@@ -12,7 +12,7 @@
     "baseUrl": "https://api.subconscious.dev",
     "baseUrlV1": "https://api.subconscious.dev/v1",
     "keyPlaceholder": "your_key",
-    "platformUrl": "https://subconscious.dev/platform"
+    "platformUrl": "https://platform.subconscious.dev"
   },
   "modelCapabilities": {
     "subconscious/deepseek-v4.1-flash-marathon": {

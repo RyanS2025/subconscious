@@ -82,7 +82,7 @@ Windows has its own implementation in `bin/windows/`, selected only when
 Node runs on Windows. macOS/Linux continue to use the existing, unchanged shell
 runbooks. WSL continues to use the Linux implementation.
 
-Use Node.js 22 or 24 and Windows PowerShell 5.1+ (included with Windows), from either
+Use Node.js 20, 22, or 24 and Windows PowerShell 5.1+ (included with Windows), from either
 PowerShell or Command Prompt. The Windows CLI integrations do not require Bash,
 `jq`, `curl`, or WSL. The agents themselves must support your Windows version;
 their own dependencies still apply.
@@ -129,7 +129,7 @@ VS Code's secret store and prompts for its key. Its configuration goes under
 `%APPDATA%\Code\User` (or Code - Insiders/VSCodium). Rerun install after moving
 your Node installation, because hooks record the absolute Node executable path.
 
-To install the native x64 `sc.exe` (stable releases starting with 0.1.4), clear
+To install the native x64 `marathon.exe` (stable releases starting with 0.1.4), clear
 any preview version pin from the current PowerShell session:
 
 ```powershell
@@ -330,6 +330,7 @@ subconscious/glm-5.3-marathon (default)
 subconscious/glm-5.2
 subconscious/tim-qwen3.6-27b
 subconscious/deepseek-v4-flash-marathon
+subconscious/deepseek-v4.1-flash-marathon
 ```
 
 Select a model per run, save it in the current profile, or override it through
@@ -442,6 +443,19 @@ logging out of `default` also clears the backwards-compatible saved key.
 Existing credentials and profiles under `~/.subcon` are copied into
 `~/.subconscious` automatically on first use. The legacy files are left in
 place so migration is recoverable.
+
+Set `SUBC_CONFIG_DIR` to keep the saved key and profiles in another directory
+instead of `~/.subconscious`. Legacy `~/.subcon` files are not migrated when it
+is set.
+
+`subc feedback` sends a message to the Subconscious support team from the
+terminal, using the active profile's API key. Pass `-s`/`--subject`,
+`-m`/`--message`, and `--image <path>` (JPEG or PNG, repeatable), or run it
+without `--message` in a terminal to be prompted:
+
+```bash
+subc feedback -s "Bug" -m "Playground won't load"
+```
 
 ## Contributing
 

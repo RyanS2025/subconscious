@@ -342,7 +342,7 @@ test('config edit requires a terminal and rejects unknown editors', async () => 
     },
   );
   assert.notEqual(unknown.status, 0);
-  assert.match(unknown.stderr, /vim or nano/);
+  assert.match(unknown.stderr, /Unknown editor 'emacs' \(use .*vim, nano\)/);
 });
 
 test('profile extras can remap Claude picker slots only to catalog models', () => {

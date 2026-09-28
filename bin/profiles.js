@@ -873,10 +873,12 @@ export async function configCommand(
           ? ''
           : value;
     } else if (action === 'edit' && ALLOWED_EDITORS.has(arg)) {
-      if (editor) throw new Error('Specify only one editor (vim or nano)');
+      if (editor) throw new Error('Specify only one editor');
       editor = arg;
     } else if (action === 'edit') {
-      throw new Error(`Unknown editor '${arg}' (use vim or nano)`);
+      throw new Error(
+        `Unknown editor '${arg}' (use ${[...ALLOWED_EDITORS].join(', ')})`,
+      );
     } else {
       throw new Error(`Unknown config argument: ${arg}`);
     }
