@@ -7,24 +7,38 @@
 // extension (index.ts) and OpenCode plugin apply this rule before the request
 // leaves the machine:
 //
-//   keep the newest screenshots, up to MAX_IMAGES and up to MAX_IMAGE_BYTES
+//   keep the newest screenshots, up to MAX_IMAGES and about SOFT_IMAGE_BYTES
 //   in total; replace every older one with the text IMAGE_LABEL.
 //
 // The label is what keeps Subconscious Cache working. The gateway puts the
 // same label before every image, so replacing an image with it removes only
 // the image's own tokens and nothing around it moves; the cache then reuses
 // the rest of the conversation and each turn only reads the new screenshot.
-// MAX_IMAGE_BYTES keeps large screenshots under Baseten's request limit.
+//
+// The cache reuses across one removed image per turn, not several, so the
+// window never removes more than one screenshot per turn. A big screenshot can
+// take the total over SOFT_IMAGE_BYTES for a few turns while the window
+// catches up one screenshot at a time. Only if a request would pass
+// HARD_IMAGE_BYTES (kept under Baseten's 64 MiB request limit) does it drop
+// straight back to the soft limit, which costs that turn's cache hit instead
+// of failing the request.
 
 export const MAX_IMAGES = 100;
 export const IMAGE_LABEL = 'image';
 const MIB = 1024 * 1024;
-/** Default image budget: under Baseten's 64 MiB request limit, with room for text. */
-export const DEFAULT_MAX_IMAGE_MIB = 60;
-export const MAX_IMAGE_BYTES =
+/** Where trimming starts; room below the hard limit to catch up. */
+export const DEFAULT_SOFT_IMAGE_MIB = 50;
+/** Never forwarded above this: under Baseten's 64 MiB, with room for text. */
+export const DEFAULT_HARD_IMAGE_MIB = 62;
+export const SOFT_IMAGE_BYTES =
   positiveNumber(
-    process.env.SUBCONSCIOUS_IMAGE_WINDOW_MAX_MIB,
-    DEFAULT_MAX_IMAGE_MIB,
+    process.env.SUBCONSCIOUS_IMAGE_WINDOW_SOFT_MIB,
+    DEFAULT_SOFT_IMAGE_MIB,
+  ) * MIB;
+export const HARD_IMAGE_BYTES =
+  positiveNumber(
+    process.env.SUBCONSCIOUS_IMAGE_WINDOW_HARD_MIB,
+    DEFAULT_HARD_IMAGE_MIB,
   ) * MIB;
 const SUBCONSCIOUS_MODEL = /^subconscious\//;
 const LABEL_PART = Object.freeze({ type: 'text', text: IMAGE_LABEL });
@@ -36,23 +50,30 @@ function positiveNumber(raw, fallback) {
 
 /**
  * How many of the oldest images to drop, given each image's size in order
- * (oldest first). Keeps the newest images while both limits hold, and always
- * keeps the newest one so the model sees the current screen.
+ * (oldest first). The answer for a request is worked out turn by turn over
+ * its history, as if each earlier screenshot had just arrived, so it depends
+ * only on the request and consecutive turns differ by at most one removal
+ * (except at the hard limit). The newest image is always kept.
  */
 export function imagesToDrop(
   sizes,
   maxImages = MAX_IMAGES,
-  maxBytes = MAX_IMAGE_BYTES,
+  softBytes = SOFT_IMAGE_BYTES,
+  hardBytes = HARD_IMAGE_BYTES,
 ) {
-  let kept = 0;
-  let bytes = 0;
-  for (let index = sizes.length - 1; index >= 0; index--) {
-    const next = bytes + sizes[index];
-    if (kept > 0 && (kept >= maxImages || next > maxBytes)) break;
-    kept += 1;
-    bytes = next;
+  const total = [0];
+  for (const size of sizes) total.push(total.at(-1) + size);
+  const kept = (from, to) => total[to] - total[from];
+  let dropped = 0;
+  // Smallest drop count that meets both soft limits for the first k images.
+  let needed = 0;
+  for (let k = 1; k <= sizes.length; k++) {
+    needed = Math.max(needed, k - maxImages);
+    while (needed < k - 1 && kept(needed, k) > softBytes) needed += 1;
+    dropped = Math.max(dropped, Math.min(dropped + 1, needed));
+    if (kept(dropped, k) > hardBytes) dropped = needed;
   }
-  return sizes.length - kept;
+  return dropped;
 }
 
 function contentParts(message) {
@@ -76,7 +97,8 @@ function chatImageSize(part) {
 export function windowImages(
   payload,
   maxImages = MAX_IMAGES,
-  maxBytes = MAX_IMAGE_BYTES,
+  softBytes = SOFT_IMAGE_BYTES,
+  hardBytes = HARD_IMAGE_BYTES,
 ) {
   if (!SUBCONSCIOUS_MODEL.test(payload?.model ?? '')) return undefined;
   if (!Array.isArray(payload.messages)) return undefined;
@@ -84,7 +106,7 @@ export function windowImages(
     .flatMap(contentParts)
     .filter(isChatImage)
     .map(chatImageSize);
-  let drop = imagesToDrop(sizes, maxImages, maxBytes);
+  let drop = imagesToDrop(sizes, maxImages, softBytes, hardBytes);
   if (drop === 0) return undefined;
   const messages = payload.messages.map((message) => {
     if (drop === 0 || !Array.isArray(message.content)) return message;

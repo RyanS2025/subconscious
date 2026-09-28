@@ -98,6 +98,49 @@ test('the window keeps the newest images within both limits', () => {
   assert.equal(imagesToDrop([], 100, 10), 0);
 });
 
+// Removals per turn: turn k's request carries the first k screenshots.
+function removalsPerTurn(sizes, soft, hard) {
+  const drops = sizes.map((_, k) =>
+    imagesToDrop(sizes.slice(0, k + 1), MAX_IMAGES, soft, hard),
+  );
+  return drops.slice(1).map((d, k) => d - drops[k]);
+}
+
+test('never more than one screenshot is removed per turn', () => {
+  // Sizes vary 0.3 to 1.2 units, as real screenshots do; soft 50, hard 62.
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const sizes = Array.from({ length: 300 }, () => 0.3 + 0.9 * random());
+  const steps = removalsPerTurn(sizes, 50, 62);
+  assert.equal(Math.max(...steps), 1);
+  assert.equal(Math.min(...steps), 0);
+});
+
+test('a big screenshot goes over the soft limit, then catches up one per turn', () => {
+  const sizes = [10, 10, 10, 10, 10, 15, 10, 10];
+  assert.deepEqual(removalsPerTurn(sizes, 50, 62), [0, 0, 0, 0, 1, 1, 1]);
+  // Turn 6 keeps 55 units: over the soft limit, under the hard one.
+  assert.equal(imagesToDrop(sizes.slice(0, 6), MAX_IMAGES, 50, 62), 1);
+});
+
+test('reaching the hard limit drops straight back to the soft limit', () => {
+  // Turn 6 would keep 70 units with one removal: over 62, so it drops to 50.
+  const sizes = [10, 10, 10, 10, 10, 30];
+  assert.equal(imagesToDrop(sizes, MAX_IMAGES, 50, 62), 3);
+});
+
+test('the count limit still removes exactly one per new screenshot', () => {
+  const sizes = Array.from({ length: 150 }, () => 1);
+  assert.equal(imagesToDrop(sizes, MAX_IMAGES, 1e9, 1e9), 50);
+  assert.deepEqual(
+    new Set(removalsPerTurn(sizes, 1e9, 1e9).slice(100)),
+    new Set([1]),
+  );
+});
+
 test('big screenshots are trimmed by bytes before the count', () => {
   const body = payload(10);
   for (const message of body.messages)
