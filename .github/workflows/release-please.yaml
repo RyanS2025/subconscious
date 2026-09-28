@@ -31,7 +31,7 @@ jobs:
       # that pull request. The publish job below uses GitHub OIDC, not this PAT.
       - name: Create or update release PR
         id: release
-        uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445 # v4.2.0
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
           target-branch: main
@@ -49,18 +49,19 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.tag_name }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - name: Install npm with trusted publishing support
         run: npm install -g npm@11.5.1
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: tui/go.mod
           cache-dependency-path: tui/go.sum
@@ -68,3 +69,22 @@ jobs:
         run: npm publish --access public
         env:
           SUBCONSCIOUS_RELEASE_PLEASE: "1"
+      - name: Record embedded module versions
+        run: |
+          files=(bin/native/*)
+          if [ "${#files[@]}" -eq 0 ] || [ ! -e "${files[0]}" ]; then
+            echo "no native binaries were built" >&2
+            exit 1
+          fi
+          {
+            for bin in "${files[@]}"; do
+              echo "# $(basename "$bin")"
+              go version -m "$bin"
+              echo
+            done
+          } > sbom-buildinfo.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-buildinfo
+          path: sbom-buildinfo.txt
+          if-no-files-found: error

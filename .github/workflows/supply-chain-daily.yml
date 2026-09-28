@@ -1,0 +1,93 @@
+name: Daily supply chain
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  actions: write
+
+jobs:
+  govulncheck:
+    name: govulncheck-daily
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      # govulncheck v1.8.0 needs Go 1.26 to build. The scans below put the
+      # tree's own Go on PATH, because JSON mode reports standard-library
+      # findings for `go env GOVERSION`, not for the scanner's compile version.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.8"
+      - name: Install govulncheck
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          GOBIN="$RUNNER_TEMP/bin" go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - name: Resolve the published tag
+        id: published
+        run: |
+          version="$(npm view subconscious-cli version)"
+          tag="v${version}"
+          git fetch origin "refs/tags/${tag}:refs/tags/${tag}"
+          git worktree add --detach "$RUNNER_TEMP/published" "$tag"
+          {
+            echo "version=${version}"
+            echo "dir=${RUNNER_TEMP}/published/tui"
+          } >> "$GITHUB_OUTPUT"
+      - name: Record main SHA
+        id: scanned-main
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ steps.published.outputs.dir }}/go.mod
+          cache-dependency-path: ${{ steps.published.outputs.dir }}/go.sum
+      - name: Scan the published tag
+        working-directory: ${{ steps.published.outputs.dir }}
+        run: |
+          set +e
+          "$RUNNER_TEMP/bin/govulncheck" -json ./... > "$GITHUB_WORKSPACE/govulncheck-published.json"
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+            exit "$code"
+          fi
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+      - name: Scan main
+        working-directory: tui
+        run: |
+          set +e
+          "$RUNNER_TEMP/bin/govulncheck" -json ./... > "$GITHUB_WORKSPACE/govulncheck-main.json"
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then
+            exit "$code"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: govulncheck-daily
+          path: |
+            govulncheck-published.json
+            govulncheck-main.json
+          if-no-files-found: error
+      - name: Open or update the GitHub issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node scripts/github-govuln-issue.js \
+            --published-version "${{ steps.published.outputs.version }}" \
+            --published-report govulncheck-published.json \
+            --main-sha "${{ steps.scanned-main.outputs.sha }}" \
+            --main-report govulncheck-main.json \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
