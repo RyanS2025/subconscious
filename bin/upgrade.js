@@ -10,7 +10,7 @@ import fs from 'node:fs/promises';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { c } from './colors.js';
-import { detectInstallTarget } from './update-check.js';
+import { compareVersions, detectInstallTarget } from './update-check.js';
 import { runWindows } from './windows/process.js';
 
 export const PACKAGE_NAME = 'subconscious-cli';
@@ -36,23 +36,6 @@ export async function currentCliVersion() {
     await fs.readFile(new URL('../package.json', import.meta.url), 'utf-8'),
   );
   return pkg.version;
-}
-
-export function compareVersions(a, b) {
-  const pa = String(a)
-    .split('.')
-    .map((part) => Number.parseInt(part, 10) || 0);
-  const pb = String(b)
-    .split('.')
-    .map((part) => Number.parseInt(part, 10) || 0);
-  const n = Math.max(pa.length, pb.length);
-  for (let i = 0; i < n; i++) {
-    const da = pa[i] || 0;
-    const db = pb[i] || 0;
-    if (da > db) return 1;
-    if (da < db) return -1;
-  }
-  return 0;
 }
 
 export async function fetchLatestVersion(fetchImpl = fetch) {

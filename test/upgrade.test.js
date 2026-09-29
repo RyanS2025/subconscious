@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { test } from 'node:test';
 import {
-  compareVersions,
   detectInstallCommand,
   installLatest,
   PACKAGE_NAME,
@@ -74,12 +73,6 @@ test('detectInstallCommand picks the package manager from the install path', () 
     ),
     `npm install -g --prefix /usr/local ${PACKAGE_NAME}@latest`,
   );
-});
-
-test('compareVersions orders semver-ish strings', () => {
-  assert.equal(compareVersions('4.0.0', '0.3.1'), 1);
-  assert.equal(compareVersions('0.3.1', '4.0.0'), -1);
-  assert.equal(compareVersions('4.0.0', '4.0.0'), 0);
 });
 
 test('printLoginUpgradeWarning tells the user to run subc upgrade --latest', () => {
@@ -167,6 +160,30 @@ test('installLatest skips npm when this version is already newest', async () => 
     assert.equal(ok, true);
     assert.equal(installed, false);
     assert.match(logs.join('\n'), /Already up to date/);
+  } finally {
+    console.log = orig;
+  }
+});
+
+test('installLatest upgrades a prerelease install to its release', async () => {
+  let installed = false;
+  const logs = [];
+  const orig = console.log;
+  console.log = (msg = '') => logs.push(String(msg));
+  try {
+    const ok = await installLatest({
+      currentVersion: '4.1.0-windows.0',
+      fetchLatest: async () => '4.1.0',
+      command: 'npm install -g subconscious-cli@latest',
+      install: async () => {
+        installed = true;
+        return true;
+      },
+      readVersion: async () => '4.1.0',
+    });
+    assert.equal(ok, true);
+    assert.equal(installed, true);
+    assert.doesNotMatch(logs.join('\n'), /Already up to date/);
   } finally {
     console.log = orig;
   }
