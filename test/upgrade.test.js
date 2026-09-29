@@ -189,6 +189,84 @@ test('installLatest upgrades a prerelease install to its release', async () => {
   }
 });
 
+test('installLatest installs anyway when npm returns a non-semver version', async () => {
+  let installed = false;
+  const errors = [];
+  const logs = [];
+  const origError = console.error;
+  const origLog = console.log;
+  console.error = (msg = '') => errors.push(String(msg));
+  console.log = (msg = '') => logs.push(String(msg));
+  try {
+    const ok = await installLatest({
+      currentVersion: '6.0.1',
+      fetchLatest: async () => '6.1',
+      command: 'npm install -g subconscious-cli@latest',
+      install: async () => {
+        installed = true;
+        return true;
+      },
+      readVersion: async () => {
+        throw new Error('should not compare against an invalid version');
+      },
+    });
+    assert.equal(ok, true);
+    assert.equal(installed, true);
+    assert.doesNotMatch(logs.join('\n'), /Already up to date/);
+    assert.match(errors.join('\n'), /npm returned an invalid version \(6\.1\)/);
+    assert.match(errors.join('\n'), /Installing @latest anyway/);
+  } finally {
+    console.error = origError;
+    console.log = origLog;
+  }
+});
+
+test('installLatest installs when the current version is not semver', async () => {
+  let installed = false;
+  const logs = [];
+  const orig = console.log;
+  console.log = (msg = '') => logs.push(String(msg));
+  try {
+    const ok = await installLatest({
+      currentVersion: '6.0',
+      fetchLatest: async () => '6.0.1',
+      command: 'npm install -g subconscious-cli@latest',
+      install: async () => {
+        installed = true;
+        return true;
+      },
+      readVersion: async () => '6.0.1',
+    });
+    assert.equal(ok, true);
+    assert.equal(installed, true);
+    assert.doesNotMatch(logs.join('\n'), /Already up to date/);
+  } finally {
+    console.log = orig;
+  }
+});
+
+test('installLatest fails when the installed version is not semver', async () => {
+  const errors = [];
+  const origError = console.error;
+  const origLog = console.log;
+  console.error = (msg = '') => errors.push(String(msg));
+  console.log = () => {};
+  try {
+    const ok = await installLatest({
+      currentVersion: '6.0.0',
+      fetchLatest: async () => '6.0.1',
+      command: 'npm install -g subconscious-cli@latest',
+      install: async () => true,
+      readVersion: async () => '6.0',
+    });
+    assert.equal(ok, false);
+    assert.match(errors.join('\n'), /Could not verify the updated CLI/);
+  } finally {
+    console.error = origError;
+    console.log = origLog;
+  }
+});
+
 test('installLatest rejects a successful command when this installation stays old', async () => {
   const errors = [];
   const orig = console.error;
